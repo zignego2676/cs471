@@ -71,6 +71,7 @@ int main(int argc, char *argv[]){
 				probability = (uint16_t)strtol(optarg, NULL, 10);
 				break;
 			case 'h':
+			case '?':
 			default:
 				print_usage();
 				return EXIT_SUCCESS;

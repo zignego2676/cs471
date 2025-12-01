@@ -54,6 +54,7 @@ int main(int argc, char *argv[]){
 				output_file = strdup(optarg);
 				break;
 			case 'h':
+			case '?':
 			default:
 				print_usage();
 				return EXIT_SUCCESS;
