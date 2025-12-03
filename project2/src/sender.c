@@ -6,13 +6,15 @@
 #include <stdio.h>
 #include <errno.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 static void print_usage(char *prog_name){
 	printf("usage: ./%s <-m> <address> <-r> <port> <-s> <port> <-i> <filepath> <-t> <num> [options]\n"
 			"\t-m <address>\tthe address of the router\n"
 			"\t-r <port>\tthe port of the router\n"
 			"\t-s <port>\tthe port of the sender\n"
-			"\n\t\taddress\tan IPv4 address\n\t\tport: a positive integer <= %" PRIu16 "\n"
+			"\n\t\taddress\tan IPv4 address\n"
+			"\t\tport: a positive integer <= %" PRIu16 "\n"
 			"\t-i <filepath>\tthe name of the input file \n"
 			"\t\tfilepath\ta valid UNIX filepath\n"
 			"\t-t <num>\tthe timeout value in milliseconds\n"
@@ -89,6 +91,7 @@ int main(int argc, char *argv[]){
 	}
 
 	struct sockaddr_in local;
+	memset(&local, 0, sizeof(struct sockaddr_in));
 	local.sin_family = AF_INET;
 	local.sin_addr.s_addr = INADDR_ANY;
 	local.sin_port = htons(sender_port);
@@ -100,17 +103,12 @@ int main(int argc, char *argv[]){
 	}
 
 	struct sockaddr_in router;
-	uint64_t clen;
-	ssize_t len = MESSAGE_LENGTH;
-	char buf[MESSAGE_LENGTH];
-	int ret;
-	struct timeval x = malloc(sizeof(timeval));
-
 	memset(&router, 0, sizeof(struct sockaddr_in));
 	router.sin_family = AF_INET;
 	router.sin_addr.s_addr = inet_addr(router_address);
 	router.sin_port = htons(router_port);
 
+	struct timeval x = malloc(sizeof(timeval));
 	x.tv_sec = timeout_ms / 1000;
 	x.tv_usec = timeout_ms * 1000;
 
@@ -121,26 +119,70 @@ int main(int argc, char *argv[]){
 		exit(EXIT_FAILURE);
 	}
 
-	if(connect(sockfd, (struct sockaddr *) &router, sizeof(struct sockaddr_in)) < 0){
-		perror("connect");
-		exit(EXIT_FAILURE);
-	}
-	printf("Successfully connected to %s:%" PRIu16 "\n", router_address, router_port);
+	struct sockaddr_in from;
+	ssize_t flen = sizeof(from);
 
-	while(fgets(buf, sizeof(buf), fp)){
-		LOG("Read %s from file\n", buf);
-		if(sendto(sockfd, buf, len, 0, (struct sockaddr *)&router, clen) < 0){
-			perror("count");
+	uint8_t seq = 0;
+	uint64_t chunk = 0;
+	ssize_t ret;
+	size_t len = MESSAGE_LENGTH + HEADER_SIZE;
+
+	char buf[len];
+
+	while(true){
+		size_t read = fread(buf + HEADER_SIZE, sizeof(char), MESSAGE_LENGTH, fp);
+		LOG("Read %s from file\n", buf + HEADER_SIZE);
+		int8_t eof = NOT_EOF;
+		if(read == 0){
+			break;
+		} else if(read < MESSAGE_LENGTH){
+			eof = IS_EOF;
+		}
+
+		buf[0] = DATA | eof;
+		buf[1] = seq;
+		bool acked = false;
+		while(!acked){
+			ret = sendto(sockfd, buf, len, 0, (struct sockaddr *)&router, sizeof(router)); 
+			LOG("Packet of sequence %" PRIu8 " and chunk %" PRIu64 "was sent\n", seq, chunk);
+			if(ret < 0){
+				perror("sendto");
+				break;
+			}
+
+			char ack_buf[HEADER_SIZE];
+			ret = recvfrom(sockfd, ack_buf, sizeof(ack_buf), 0, (struct sockaddr *)&from, &fromlen);
+			if(ret >=0){
+				if(r >= 2 && (ack_buf[0] & 0x0f) == ACK && ack_buf[1] == seq){
+					printf("Chunk %" PRIu8 " of sequence %" PRIu64 "acked\n", chunk);
+					acked = true;
+					seq ^= 1;
+				} else{
+					continue;
+				}
+			} else{
+				if(errno == EAGAIN || errno == EWOULDBLOCK){
+					fprintf(stderr, "Timed-out waiting for an ACK for chunk %d\n", chunk);
+					continue;
+				} else if(errno == EINTR){
+					continue;
+				} else{
+					perror("recvfrom");
+					break;
+				}
+			}
+		}
+
+		chunk++;
+
+		if(eof){
+			LOG("Last chunk sent and acknowledged\n");
 			break;
 		}
-
-		ret = recvfrom(sockfd, buf, len, 0, NULL, NULL);
-		while(ret == -1 && errno == EWOULDBLOCK){
-			fprintf(stderr, "Timeout has occurred\n");
-			sendto(sockfd, buf, len, 0, (struct sockaddr *)&router, clen);
-			ret = recvfrom(sockfd, buf, len, 0, NULL, NULL);
-		}
 	}
 
+	printf("Sender shutting down...\n");
+	fclose(fp);
+	close(sockfd);
 	return EXIT_SUCCESS;
 }
