@@ -2,10 +2,22 @@
  * Benjamin Zignego
  * 12/5/2025
  */
+#include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <errno.h>
 #include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
+#include <inttypes.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <ctype.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+#include "project.h"
 
 static void print_usage(){
 	printf("usage: ./%s <-m> <address> <-r> <port> <-d> <port> -o <filepath> [options]\n"
