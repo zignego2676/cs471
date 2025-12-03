@@ -131,6 +131,8 @@ int main(int argc, char *argv[]){
 		exit(EXIT_FAILURE);
 	}
 
+	printf("Sender successfully started\n");
+
 	struct sockaddr_in from;
 	socklen_t flen = sizeof(from);
 

@@ -19,7 +19,7 @@
 #include <unistd.h>
 #include "project.h"
 
-static void print_usage(){
+static void print_usage(char *prog_name){
 	printf("usage: ./%s <-m> <address> <-r> <port> <-d> <port> -o <filepath> [options]\n"
 			"\t-m <address>\tthe address of the router\n"
 			"\t-r <port>\tthe port of the router\n"
@@ -49,7 +49,7 @@ int main(int argc, char *argv[]){
 			case 'r':
 				int64_t temp_num = strtoll(optarg, NULL, 10); 
 				if(temp_num > UINT16_MAX || temp_num < 1){
-					print_usage();
+					print_usage(argv[0]);
 					exit(EXIT_FAILURE);
 				}
 				router_port = (uint16_t)strtol(optarg, NULL, 10);
@@ -57,7 +57,7 @@ int main(int argc, char *argv[]){
 			case 'd':
 				int64_t temp_num = strtoll(optarg, NULL, 10); 
 				if(temp_num > UINT16_MAX || temp_num < 1){
-					print_usage();
+					print_usage(argv[0]);
 					exit(EXIT_FAILURE);
 				}
 				receiver_port = (uint16_t)strtol(optarg, NULL, 10);
@@ -68,7 +68,7 @@ int main(int argc, char *argv[]){
 			case 'h':
 			case '?':
 			default:
-				print_usage();
+				print_usage(argv[0]);
 				return EXIT_SUCCESS;
 		}
 	}
