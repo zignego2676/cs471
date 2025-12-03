@@ -2,11 +2,22 @@
  * Benjamin Zignego
  * 12/5/2025
  */
+#include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <errno.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
+#include <inttypes.h>
+#include <arpa/inet.h>
+#include <sys/types.h>
+#include <ctype.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+#include "project.h"
 
 static void print_usage(char *prog_name){
 	printf("usage: ./%s <-m> <address> <-r> <port> <-s> <port> <-i> <filepath> <-t> <num> [options]\n"
@@ -39,33 +50,34 @@ int main(int argc, char *argv[]){
 	uint64_t timeout_ms = 0;
 
 	while((opt = getopt(argc, argv, "m:r:s:i:t:h")) != -1){
+		int64_t temp_num;
 		switch(opt){
 			case 'm':
 				router_address = strdup(optarg);
 				break;
 			case 'r':
-				int64_t temp_num = strtoll(optarg, NULL, 10); 
+				temp_num = strtoll(optarg, NULL, 10); 
 				if(temp_num > UINT16_MAX || temp_num < 1){
-					print_usage();
+					print_usage(argv[0]);
 					exit(EXIT_FAILURE);
 				}
 				router_port = (uint16_t)strtol(optarg, NULL, 10);
 				break;
 			case 's':
-				int64_t temp_num = strtoll(optarg, NULL, 10); 
+				temp_num = strtoll(optarg, NULL, 10); 
 				if(temp_num > UINT16_MAX || temp_num < 1){
-					print_usage();
+					print_usage(argv[0]);
 					exit(EXIT_FAILURE);
 				}
 				sender_port = (uint16_t)strtol(optarg, NULL, 10);
 				break;
 			case 'i':
 				input_file = strdup(optarg);
-				break
+				break;
 			case 't':
-				int64_t temp_num = strtoll(optarg, NULL, 10); 
+				temp_num = strtoll(optarg, NULL, 10); 
 				if(temp_num < 0){
-					print_usage();
+					print_usage(argv[0]);
 					exit(EXIT_FAILURE);
 				}
 				timeout_ms = (uint64_t)temp_num;
@@ -73,12 +85,12 @@ int main(int argc, char *argv[]){
 			case 'h':
 			case '?':
 			default:
-				print_usage();
+				print_usage(argv[0]);
 				return EXIT_SUCCESS;
 		}
 	}
 
-	FILE *fp = fopen(input_file);
+	FILE *fp = fopen(input_file, "rb");
 	if(!fp){
 		perror("fopen");
 		exit(EXIT_FAILURE);
@@ -108,9 +120,9 @@ int main(int argc, char *argv[]){
 	router.sin_addr.s_addr = inet_addr(router_address);
 	router.sin_port = htons(router_port);
 
-	struct timeval x = malloc(sizeof(timeval));
+	struct timeval x;
 	x.tv_sec = timeout_ms / 1000;
-	x.tv_usec = timeout_ms * 1000;
+	x.tv_usec = (timeout_ms % 1000) * 1000;
 
 	if(setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &x, sizeof(struct timeval)) < 0){
 		perror("setsockopt");
@@ -120,7 +132,7 @@ int main(int argc, char *argv[]){
 	}
 
 	struct sockaddr_in from;
-	ssize_t flen = sizeof(from);
+	socklen_t flen = sizeof(from);
 
 	uint8_t seq = 0;
 	uint64_t chunk = 0;
@@ -130,12 +142,12 @@ int main(int argc, char *argv[]){
 	char buf[len];
 
 	while(true){
-		size_t read = fread(buf + HEADER_SIZE, sizeof(char), MESSAGE_LENGTH, fp);
+		size_t read_bytes = fread(buf + HEADER_SIZE, sizeof(char), MESSAGE_LENGTH, fp);
 		LOG("Read %s from file\n", buf + HEADER_SIZE);
 		int8_t eof = NOT_EOF;
-		if(read == 0){
+		if(read_bytes == 0){
 			break;
-		} else if(read < MESSAGE_LENGTH){
+		} else if(read_bytes < MESSAGE_LENGTH){
 			eof = IS_EOF;
 		}
 
@@ -151,10 +163,10 @@ int main(int argc, char *argv[]){
 			}
 
 			char ack_buf[HEADER_SIZE];
-			ret = recvfrom(sockfd, ack_buf, sizeof(ack_buf), 0, (struct sockaddr *)&from, &fromlen);
+			ret = recvfrom(sockfd, ack_buf, sizeof(ack_buf), 0, (struct sockaddr *)&from, &flen);
 			if(ret >=0){
-				if(r >= 2 && (ack_buf[0] & 0x0f) == ACK && ack_buf[1] == seq){
-					printf("Chunk %" PRIu8 " of sequence %" PRIu64 "acked\n", chunk);
+				if(ret >= 2 && (ack_buf[0] & 0x0f) == ACK && ack_buf[1] == seq){
+					printf("Chunk %" PRIu64 " of sequence %" PRIu8 "acked\n", chunk, seq);
 					acked = true;
 					seq ^= 1;
 				} else{
@@ -162,7 +174,7 @@ int main(int argc, char *argv[]){
 				}
 			} else{
 				if(errno == EAGAIN || errno == EWOULDBLOCK){
-					fprintf(stderr, "Timed-out waiting for an ACK for chunk %d\n", chunk);
+					fprintf(stderr, "Timed-out waiting for an ACK for chunk %" PRIu64 "\n", chunk);
 					continue;
 				} else if(errno == EINTR){
 					continue;
