@@ -26,9 +26,10 @@ static void print_usage(char *prog_name){
 			"\t-d <port>\tthe port of the receiver\n"
 			"\t-o <filepath\tthe name of the output file\n"
 			"\t\tfilepath\ta valid UNIX filepath\n"
-			"\n\t\taddress\tan IPv4 address\n\t\tport: a positive integer < 65536\n"
+			"\t\taddress\tan IPv4 address\n"
+			"\t\tport: a positive integer <= %" PRIu16 "\n"
 			"options:\n"
-			"\t-h\tdisplay this message and exit\n", prog_name
+			"\t-h\tdisplay this message and exit\n", prog_name, UINT16_MAX
 	);
 }
 
@@ -42,12 +43,13 @@ int main(int argc, char *argv[]){
 	char *output_file = NULL;
 
 	while((opt = getopt(argc, argv, "m:r:d:o:h")) != -1){
+		int64_t temp_num
 		switch(opt){
 			case 'm':
 				router_address = strdup(optarg);
 				break;
 			case 'r':
-				int64_t temp_num = strtoll(optarg, NULL, 10); 
+				temp_num = strtoll(optarg, NULL, 10); 
 				if(temp_num > UINT16_MAX || temp_num < 1){
 					print_usage(argv[0]);
 					exit(EXIT_FAILURE);
@@ -55,7 +57,7 @@ int main(int argc, char *argv[]){
 				router_port = (uint16_t)strtol(optarg, NULL, 10);
 				break;
 			case 'd':
-				int64_t temp_num = strtoll(optarg, NULL, 10); 
+				temp_num = strtoll(optarg, NULL, 10); 
 				if(temp_num > UINT16_MAX || temp_num < 1){
 					print_usage(argv[0]);
 					exit(EXIT_FAILURE);

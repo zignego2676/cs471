@@ -24,7 +24,7 @@ static void print_usage(char *prog_name){
 			"\t-m <address>\tthe address of the router\n"
 			"\t-r <port>\tthe port of the router\n"
 			"\t-s <port>\tthe port of the sender\n"
-			"\n\t\taddress\tan IPv4 address\n"
+			"\t\taddress\tan IPv4 address\n"
 			"\t\tport: a positive integer <= %" PRIu16 "\n"
 			"\t-i <filepath>\tthe name of the input file \n"
 			"\t\tfilepath\ta valid UNIX filepath\n"

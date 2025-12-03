@@ -30,10 +30,12 @@ static void print_usage(char *prog_name){
 			"\t-s <port>\tthe port of the sender\n"
 			"\t-t <address>\tthe address of the receiver\n"
 			"\t-d <port>\tthe port of the receiver\n"
-			"\n\t\taddress\tan IPv4 address\n\t\tport: a positive integer < 65536\n"
-			"\t-p <num>\tthe probability that a packet will be dropped\n\t\tnum: an integer between 0 and 1000\n"
+			"\t\taddress\tan IPv4 address\n"
+			"\t\tport: a positive integer < " PRIu16 "\n"
+			"\t-p <num>\tthe probability that a packet will be dropped\n"
+			"\t\tnum: an integer between 0 and 1000\n"
 			"options:\n"
-			"\t-h\tdisplay this message and exit\n", prog_name
+			"\t-h\tdisplay this message and exit\n", prog_name, UINT16_MAX
 	);
 }
 
