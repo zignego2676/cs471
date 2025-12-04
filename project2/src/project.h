@@ -12,6 +12,8 @@
 
 #define MESSAGE_LENGTH 100
 #define HEADER_SIZE 3
+#define RECEIVER_TIMEOUT_S 1
+#define RECEIVER_TIMEOUT_US 0
 #define PRINT_LOGS true
 #define DATA 0x01
 #define ACK 0x02

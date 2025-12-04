@@ -92,6 +92,14 @@ int main(int argc, char *argv[]){
 		exit(EXIT_FAILURE);
 	}
 
+	struct timeval x;
+	x.tv_sec = RECEIVER_TIMEOUT_S;
+	x.tv_usec = RECEIVER_TIMEOUT_US;
+	if(setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &x, sizeof(x)) < 0){
+		perror("setsockopt");
+		exit(EXIT_FAILURE);
+	}
+
 	struct sockaddr_in receiver;
 	memset(&receiver, 0, sizeof(receiver));
 	receiver.sin_family = AF_INET;
@@ -111,6 +119,8 @@ int main(int argc, char *argv[]){
 	printf("Receiver ready on port %" PRIu16 " with router %s:%" PRIu16 "\n", receiver_port, router_address, router_port);
 
 	uint8_t expected_seq = 0;
+	char last_ack[HEADER_SIZE];
+	bool has_last_ack = false;
 
 	while(true){
 		size_t len = MESSAGE_LENGTH + HEADER_SIZE + 1; // Add 1 for the null terminator
@@ -119,8 +129,14 @@ int main(int argc, char *argv[]){
 		socklen_t flen = sizeof(from);
 
 		ssize_t ret = recvfrom(sockfd, buf, sizeof(buf), 0, (struct sockaddr *)&from, &flen);
-		buf[len] = '\0';
 		if(ret < 0){
+			if(errno == EWOULDBLOCK || errno == EAGAIN){
+				if(has_last_ack){
+					printf("Timeout occurred: resending ACK\n");
+					sendto(sockfd, last_ack, sizeof(last_ack), 0, (struct sockaddr *)&router, sizeof(router));
+				}
+				continue;
+			}
 			perror("recvfrom");
 			continue;
 		}
@@ -129,6 +145,7 @@ int main(int argc, char *argv[]){
 			continue;
 		}
 
+		buf[len] = '\0';
 		uint8_t received_flags = buf[0];
 		uint8_t received_seq = buf[1];
 		LOG("Received sequence %" PRIu8 " and flags %x\n", received_seq, received_flags);
@@ -143,8 +160,11 @@ int main(int argc, char *argv[]){
 			ack[1] = expected_seq ^ 1;
 
 			printf("Duplicate packet received of sequence %" PRIu8 " instead of expected %" PRIu8 "\n", received_seq, expected_seq);
-			
+
 			sendto(sockfd, ack, sizeof(ack), 0, (struct sockaddr *)&router, sizeof(router));
+
+			memcpy(last_ack, ack, sizeof(ack));
+			has_last_ack = true;
 			continue;
 		}
 
@@ -154,8 +174,12 @@ int main(int argc, char *argv[]){
 
 		ack[0] = ACK;
 		ack[1] = received_seq;
-		sendto(sockfd, ack, HEADER_SIZE, 0, (struct sockaddr *)&router, sizeof(router));
+		memcpy(last_ack, ack, HEADER_SIZE);
+		has_last_ack = true;
 
+		sendto(sockfd, ack, sizeof(ack), 0, (struct sockaddr *)&router, sizeof(router));
+
+		has_last_ack = true;
 		expected_seq ^= 1;
 
 		if((received_flags & 0xf0) == IS_EOF){
