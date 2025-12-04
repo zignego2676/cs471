@@ -17,3 +17,4 @@ receiver: src/project.h src/sender.c
 
 clean:
 	rm bin/*
+	rm output/*

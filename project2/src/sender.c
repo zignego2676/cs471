@@ -36,7 +36,7 @@ static void print_usage(char *prog_name){
 }
 
 int main(int argc, char *argv[]){	
-	if(argc != 6){
+	if(argc != 11){
 		print_usage(argv[0]);
 		exit(EXIT_FAILURE);
 	}
@@ -145,7 +145,7 @@ int main(int argc, char *argv[]){
 
 	while(true){
 		size_t read_bytes = fread(buf + HEADER_SIZE, sizeof(char), MESSAGE_LENGTH, fp);
-		LOG("Read %s from file\n", buf + HEADER_SIZE);
+		LOG("Read %zu characters: %s\n", read_bytes, buf + HEADER_SIZE);
 		int8_t eof = NOT_EOF;
 		if(read_bytes == 0){
 			break;
@@ -155,10 +155,11 @@ int main(int argc, char *argv[]){
 
 		buf[0] = DATA | eof;
 		buf[1] = seq;
+		buf[2] = read_bytes;
 		bool acked = false;
 		while(!acked){
 			ret = sendto(sockfd, buf, len, 0, (struct sockaddr *)&router, sizeof(router)); 
-			LOG("Packet of sequence %" PRIu8 " and chunk %" PRIu64 "was sent\n", seq, chunk);
+			LOG("Packet of sequence %" PRIu8 " and chunk %" PRIu64 " was sent\n", seq, chunk);
 			if(ret < 0){
 				perror("sendto");
 				break;
@@ -166,9 +167,9 @@ int main(int argc, char *argv[]){
 
 			char ack_buf[HEADER_SIZE];
 			ret = recvfrom(sockfd, ack_buf, sizeof(ack_buf), 0, (struct sockaddr *)&from, &flen);
-			if(ret >=0){
+			if(ret >= 0){
 				if(ret >= 2 && (ack_buf[0] & 0x0f) == ACK && ack_buf[1] == seq){
-					printf("Chunk %" PRIu64 " of sequence %" PRIu8 "acked\n", chunk, seq);
+					printf("Chunk %" PRIu64 " of sequence %" PRIu8 " acked\n", chunk, seq);
 					acked = true;
 					seq ^= 1;
 				} else{
@@ -189,14 +190,17 @@ int main(int argc, char *argv[]){
 
 		chunk++;
 
-		if(eof){
+		if(eof == IS_EOF){
 			LOG("Last chunk sent and acknowledged\n");
 			break;
 		}
 	}
 
 	printf("Sender shutting down...\n");
+
 	fclose(fp);
 	close(sockfd);
+	free(router_address);
+
 	return EXIT_SUCCESS;
 }

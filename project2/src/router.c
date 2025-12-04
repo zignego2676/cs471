@@ -24,14 +24,14 @@
 #define PROBABILITY_MAX 1000
 
 static void print_usage(char *prog_name){
-	printf("usage: ./%s <-r> <port> <-f> <address> <-s> <port> <-t> <address> <-d> <port> [options]\n"
+	printf("usage: ./%s <-r> <port> <-f> <address> <-s> <port> <-t> <address> <-d> <port> -p <num> [options]\n"
 			"\t-r <port>\tthe port of the router\n"
 			"\t-f <address>\tthe address of the sender\n"
 			"\t-s <port>\tthe port of the sender\n"
 			"\t-t <address>\tthe address of the receiver\n"
 			"\t-d <port>\tthe port of the receiver\n"
 			"\t\taddress\tan IPv4 address\n"
-			"\t\tport: a positive integer < " PRIu16 "\n"
+			"\t\tport: a positive integer < %" PRIu16 "\n"
 			"\t-p <num>\tthe probability that a packet will be dropped\n"
 			"\t\tnum: an integer between 0 and 1000\n"
 			"options:\n"
@@ -40,6 +40,12 @@ static void print_usage(char *prog_name){
 }
 
 int main(int argc, char *argv[]){	
+
+	if(argc != 13){
+		print_usage(argv[0]);
+		exit(EXIT_FAILURE);
+	}
+
 	int opt;
 
 	uint16_t router_port = 0;
@@ -157,18 +163,21 @@ int main(int argc, char *argv[]){
 				continue;
 			}
 
+
 			struct sockaddr_in *dest;
 
 			if(from.sin_port == htons(sender_port) && from.sin_addr.s_addr == inet_addr(sender_address)){			// Sender
+				printf("Packet received from sender\n");
 				dest = &receiver;
 			} else if(from.sin_port == htons(receiver_port) && from.sin_addr.s_addr == inet_addr(receiver_address)){	// Receiver
+				printf("Packet received from receiver\n");
 				dest = &sender;
 			} else{														// Error
 				printf("Ignoring unexpected packet received\n");
 				continue;
 			}
 
-			if((rand() % PROBABILITY_MAX) < probability){
+			if((rand() % PROBABILITY_MAX) > probability){
 				if(sendto(sockfd, buf, ret, 0, (struct sockaddr *)dest, sizeof(*dest)) < 0){
 					perror("sendto");
 				}
@@ -180,6 +189,8 @@ int main(int argc, char *argv[]){
 	}
 
 	close(sockfd);
+	free(sender_address);
+	free(receiver_address);
 
 	return EXIT_SUCCESS;
 }

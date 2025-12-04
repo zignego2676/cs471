@@ -11,7 +11,7 @@
 #include <stdlib.h>
 
 #define MESSAGE_LENGTH 100
-#define HEADER_SIZE 2
+#define HEADER_SIZE 3
 #define PRINT_LOGS true
 #define DATA 0x01
 #define ACK 0x02
